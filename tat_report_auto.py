@@ -310,11 +310,16 @@ Please find the Valuecart Seller Queries TAT Report for the last two completed w
 Regards"""
 
 msg = MIMEMultipart()
-msg['to']      = EMAIL_TO
+msg['to']      = EMAIL_TO   # supports "a@x.com,b@x.com"
 msg['subject'] = subject
 if EMAIL_CC:
     msg['cc'] = EMAIL_CC
 msg.attach(MIMEText(body_text, 'plain'))
+
+# Build full recipient list
+all_recipients = [e.strip() for e in EMAIL_TO.split(',')]
+if EMAIL_CC:
+    all_recipients += [e.strip() for e in EMAIL_CC.split(',')]
 
 attachment = MIMEBase('application', 'vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 attachment.set_payload(excel_bytes)
@@ -326,4 +331,5 @@ raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
 
 service = get_gmail_service()
 service.users().messages().send(userId='me', body={'raw': raw}).execute()
+print(f"Email sent to: {', '.join(all_recipients)}")
 print(f"Email sent to {EMAIL_TO} with attachment: {filename}")
