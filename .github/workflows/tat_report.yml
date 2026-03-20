@@ -1,0 +1,36 @@
+name: Weekly TAT Report
+
+on:
+  schedule:
+    # Every Thursday at 3:30 UTC = 9:00 AM IST
+    - cron: '30 3 * * 4'
+  workflow_dispatch:   # also allows manual trigger from GitHub UI
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run TAT Report
+        env:
+          ZOHO_CLIENT_ID:      ${{ secrets.ZOHO_CLIENT_ID }}
+          ZOHO_CLIENT_SECRET:  ${{ secrets.ZOHO_CLIENT_SECRET }}
+          ZOHO_REFRESH_TOKEN:  ${{ secrets.ZOHO_REFRESH_TOKEN }}
+          ZOHO_ORG_ID:         ${{ secrets.ZOHO_ORG_ID }}
+          GMAIL_CLIENT_ID:     ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          EMAIL_TO:            ${{ secrets.EMAIL_TO }}
+          EMAIL_CC:            ${{ secrets.EMAIL_CC }}
+        run: python tat_report_auto.py
