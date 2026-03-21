@@ -89,6 +89,13 @@ def fetch_tickets(token, from_dt, to_dt):
             break
 
     print(f"  Fetched {len(all_tix)} total tickets from API")
+    if all_tix:
+        t = all_tix[0]
+        print(f"  Sample ticket keys: {list(t.keys())}")
+        print(f"  createdTime: {t.get('createdTime','')}")
+        print(f"  status: {t.get('status','')}")
+        print(f"  cf field: {t.get('cf',{})}")
+        print(f"  slaViolationType: {t.get('slaViolationType','')}")
 
     # Filter by date
     result = []
