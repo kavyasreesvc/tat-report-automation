@@ -84,24 +84,21 @@ def get_zoho_access_token():
     return resp['access_token']
 
 
-def fetch_zoho_tickets(access_token, from_date, to_date):
-    """Fetch all tickets created between from_date and to_date."""
+def fetch_all_tickets(access_token):
+    """Fetch all recent tickets from Zoho Desk."""
     headers = {
         'Authorization': f'Zoho-oauthtoken {access_token}',
         'orgId': ZOHO_ORG_ID,
     }
     tickets = []
-    # Zoho expects milliseconds timestamp
-    from_ms = int(from_date.timestamp() * 1000)
-    to_ms   = int(to_date.timestamp() * 1000)
-
     limit  = 100
     offset = 0
     while True:
         r = requests.get('https://desk.zoho.in/api/v1/tickets', headers=headers, params={
-            'limit':            limit,
-            'from':             offset,
-            'createdTimeRange': f"{from_ms},{to_ms}",
+            'limit':     limit,
+            'from':      offset,
+            'sortBy':    'createdTime',
+            'order':     'desc',
         })
         print(f"  API response status: {r.status_code}")
         if r.status_code != 200:
@@ -111,11 +108,27 @@ def fetch_zoho_tickets(access_token, from_date, to_date):
         if not data:
             break
         tickets.extend(data)
+        # Stop if oldest ticket in page is before wA_start
+        last_created = data[-1].get('createdTime', '')
+        if last_created and last_created < wA_start.strftime('%Y-%m-%dT%H:%M:%S'):
+            break
         if len(data) < limit:
             break
         offset += limit
-
+        if offset > 500:  # safety limit
+            break
+    print(f"  Total tickets fetched: {len(tickets)}")
     return tickets
+
+def fetch_zoho_tickets(access_token, from_date, to_date):
+    """Filter tickets by date range."""
+    all_tickets = fetch_all_tickets(access_token)
+    from_str = from_date.strftime('%Y-%m-%dT%H:%M:%S')
+    to_str   = to_date.strftime('%Y-%m-%dT%H:%M:%S')
+    filtered = [t for t in all_tickets
+                if from_str <= (t.get('createdTime','') or '')[:19] <= to_str]
+    print(f"  Filtered {len(filtered)} tickets between {from_str} and {to_str}")
+    return filtered
 
 
 def tickets_to_df(tickets):
