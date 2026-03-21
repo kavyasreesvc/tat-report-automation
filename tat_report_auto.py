@@ -79,8 +79,10 @@ def get_zoho_access_token():
         'client_secret': ZOHO_CLIENT_SECRET,
         'grant_type':    'refresh_token',
     })
-    r.raise_for_status()
-    return r.json()['access_token']
+    resp = r.json()
+    if 'access_token' not in resp:
+        raise Exception(f"Zoho token error: {resp}")
+    return resp['access_token']
 
 
 def fetch_zoho_tickets(access_token, from_date, to_date):
