@@ -18,8 +18,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email import encoders
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
+import smtplib
+from email.utils import formataddr
 
 
 # ══════════════════════════════════════════════════════════════
@@ -30,9 +30,8 @@ ZOHO_CLIENT_SECRET   = os.environ['ZOHO_CLIENT_SECRET']
 ZOHO_REFRESH_TOKEN   = os.environ['ZOHO_REFRESH_TOKEN']
 ZOHO_ORG_ID          = os.environ['ZOHO_ORG_ID']          # Zoho Desk org ID
 
-GMAIL_CLIENT_ID      = os.environ['GMAIL_CLIENT_ID']
-GMAIL_CLIENT_SECRET  = os.environ['GMAIL_CLIENT_SECRET']
-GMAIL_REFRESH_TOKEN  = os.environ['GMAIL_REFRESH_TOKEN']
+GMAIL_ADDRESS        = os.environ['GMAIL_ADDRESS']   # your gmail address
+GMAIL_APP_PASSWORD   = os.environ['GMAIL_APP_PASSWORD'] # Gmail App Password
 
 EMAIL_TO             = os.environ['EMAIL_TO']             # recipient
 EMAIL_CC             = os.environ.get('EMAIL_CC', '')     # optional CC
@@ -305,15 +304,7 @@ print("Excel report built.")
 # ══════════════════════════════════════════════════════════════
 #  STEP 4 — Send via Gmail API
 # ══════════════════════════════════════════════════════════════
-def get_gmail_service():
-    creds = Credentials(
-        token=None,
-        refresh_token=GMAIL_REFRESH_TOKEN,
-        client_id=GMAIL_CLIENT_ID,
-        client_secret=GMAIL_CLIENT_SECRET,
-        token_uri='https://oauth2.googleapis.com/token',
-    )
-    return build('gmail', 'v1', credentials=creds)
+# SMTP sending — no OAuth needed
 
 
 today_str    = datetime.now().strftime('%d %b %Y')
@@ -329,6 +320,7 @@ Please find the Valuecart Seller Queries TAT Report for the last two completed w
 Regards"""
 
 msg = MIMEMultipart()
+msg['from']    = GMAIL_ADDRESS
 msg['to']      = EMAIL_TO   # supports "a@x.com,b@x.com"
 msg['subject'] = subject
 if EMAIL_CC:
@@ -346,9 +338,9 @@ encoders.encode_base64(attachment)
 attachment.add_header('Content-Disposition', 'attachment', filename=filename)
 msg.attach(attachment)
 
-raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-
-service = get_gmail_service()
-service.users().messages().send(userId='me', body={'raw': raw}).execute()
+# Send via SMTP
+with smtplib.SMTP_SSL('smtp.gmail.com', 465) as server:
+    server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+    server.sendmail(GMAIL_ADDRESS, all_recipients, msg.as_bytes())
 print(f"Email sent to: {', '.join(all_recipients)}")
 print(f"Email sent to {EMAIL_TO} with attachment: {filename}")
