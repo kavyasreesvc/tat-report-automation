@@ -92,20 +92,22 @@ def fetch_zoho_tickets(access_token, from_date, to_date):
         'orgId': ZOHO_ORG_ID,
     }
     tickets = []
-    from_str = from_date.strftime('%Y-%m-%dT%H:%M:%SZ')
-    to_str   = to_date.strftime('%Y-%m-%dT%H:%M:%SZ')
+    # Zoho expects milliseconds timestamp
+    from_ms = int(from_date.timestamp() * 1000)
+    to_ms   = int(to_date.timestamp() * 1000)
 
     limit  = 100
     offset = 0
     while True:
         r = requests.get('https://desk.zoho.in/api/v1/tickets', headers=headers, params={
-            'limit':           limit,
-            'from':            offset,
-            'createdTimeRange': f"{from_str},{to_str}",
-            'fields':          'id,ticketNumber,subject,status,createdTime,closedTime,dueDate,'
-                               'category,slaViolationType,assignee,channel,cf',
+            'limit':            limit,
+            'from':             offset,
+            'createdTimeRange': f"{from_ms},{to_ms}",
         })
-        r.raise_for_status()
+        print(f"  API response status: {r.status_code}")
+        if r.status_code != 200:
+            print(f"  API error: {r.text[:500]}")
+            break
         data = r.json().get('data', [])
         if not data:
             break
@@ -118,20 +120,35 @@ def fetch_zoho_tickets(access_token, from_date, to_date):
 
 
 def tickets_to_df(tickets):
+    if not tickets:
+        return pd.DataFrame(columns=['SLA Violation Type','Subject','Status',
+            'Ticket Closed Time','Request Id','Due Date','BD POC',
+            'Query Category','Seller Category','Internal Department'])
     rows = []
     for t in tickets:
         cf = t.get('cf') or {}
+        # SLA violation type — check multiple possible field names
+        sla = (t.get('slaViolationType') or
+               t.get('sla_violation_type') or
+               cf.get('cf_sla_violation_type') or '')
+        # Normalize common values
+        if sla in ('', None): sla = 'Not Violated'
+
         rows.append({
-            'SLA Violation Type':    t.get('slaViolationType', ''),
-            'Subject':               t.get('subject', ''),
-            'Status':                t.get('status', ''),
-            'Ticket Closed Time':    t.get('closedTime', ''),
-            'Request Id':            t.get('ticketNumber', ''),
-            'Due Date':              t.get('dueDate', ''),
-            'BD POC':                (t.get('assignee') or {}).get('name', ''),
-            'Query Category':        cf.get('cf_query_category', '') or t.get('category', ''),
-            'Seller Category':       cf.get('cf_seller_category', ''),
-            'Internal Department':   cf.get('cf_internal_department', ''),
+            'SLA Violation Type':  sla,
+            'Subject':             t.get('subject', ''),
+            'Status':              t.get('status', ''),
+            'Ticket Closed Time':  t.get('closedTime', '') or t.get('closed_time', ''),
+            'Request Id':          t.get('ticketNumber', '') or t.get('ticket_number', ''),
+            'Due Date':            t.get('dueDate', '') or t.get('due_date', ''),
+            'BD POC':              (t.get('assignee') or {}).get('name', ''),
+            'Query Category':      (cf.get('cf_query_category') or
+                                    cf.get('Query Category') or
+                                    t.get('category', '') or ''),
+            'Seller Category':     (cf.get('cf_seller_category') or
+                                    cf.get('Seller Category') or ''),
+            'Internal Department': (cf.get('cf_internal_department') or
+                                    cf.get('Internal Department') or ''),
         })
     return pd.DataFrame(rows)
 
