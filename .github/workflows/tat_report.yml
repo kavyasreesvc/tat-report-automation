@@ -4,7 +4,7 @@ on:
   schedule:
     # Every Thursday at 3:30 UTC = 9:00 AM IST
     - cron: '30 3 * * 4'
-  workflow_dispatch:   # also allows manual trigger from GitHub UI
+  workflow_dispatch:
 
 jobs:
   send-report:
@@ -28,7 +28,7 @@ jobs:
           ZOHO_CLIENT_SECRET:  ${{ secrets.ZOHO_CLIENT_SECRET }}
           ZOHO_REFRESH_TOKEN:  ${{ secrets.ZOHO_REFRESH_TOKEN }}
           ZOHO_ORG_ID:         ${{ secrets.ZOHO_ORG_ID }}
-       GMAIL_ADDRESS:       ${{ secrets.GMAIL_ADDRESS }}
+          GMAIL_ADDRESS:       ${{ secrets.GMAIL_ADDRESS }}
           GMAIL_APP_PASSWORD:  ${{ secrets.GMAIL_APP_PASSWORD }}
           EMAIL_TO:            ${{ secrets.EMAIL_TO }}
           EMAIL_CC:            ${{ secrets.EMAIL_CC }}
