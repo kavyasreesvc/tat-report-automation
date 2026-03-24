@@ -63,7 +63,11 @@ def fetch_tickets(token, from_dt, to_dt):
     while True:
         r = requests.get("https://desk.zoho.in/api/v1/tickets",
                          headers=headers,
-                         params={"limit": 100, "from": offset, "sortBy": "createdTime"})
+                         params={
+                             "limit":   100,
+                             "from":    offset,
+                             "include": "cf,assignee",
+                         })
         if r.status_code != 200:
             print(f"  API error {r.status_code}: {r.text[:300]}")
             break
@@ -71,14 +75,13 @@ def fetch_tickets(token, from_dt, to_dt):
         if not data:
             break
         all_tix.extend(data)
-        # Check oldest ticket on this page
+            # Stop fetching if oldest ticket on page is before our range
         oldest = data[-1].get("createdTime", "")
         if oldest:
-            # Parse Zoho date (handles both "2026-03-02T09:44:32.000Z" and "2026-03-02 09:44:32")
             oldest_clean = oldest.replace("T"," ").replace("Z","").replace(".000","")[:19]
             try:
                 oldest_dt = datetime.strptime(oldest_clean, "%Y-%m-%d %H:%M:%S")
-                if oldest_dt < from_dt:
+                if oldest_dt < from_dt - timedelta(days=1):
                     break
             except:
                 pass
