@@ -114,7 +114,15 @@ def fetch_tickets(token, from_dt, to_dt):
     print(f"  Filtered to {len(result)} tickets for {from_dt.date()} – {to_dt.date()}")
     return result
 
-def to_df(tickets):
+def get_ticket_detail(token, ticket_id):
+    """Fetch single ticket with all custom fields."""
+    headers = {"Authorization": f"Zoho-oauthtoken {token}", "orgId": ZOHO_ORG_ID}
+    r = requests.get(f"https://desk.zoho.in/api/v1/tickets/{ticket_id}", headers=headers)
+    if r.status_code == 200:
+        return r.json()
+    return {}
+
+def to_df(tickets, token=None):
     if not tickets:
         return pd.DataFrame(columns=["SLA Violation Type","Subject","Status",
             "Ticket Closed Time","Request Id","Due Date","BD POC",
@@ -122,6 +130,11 @@ def to_df(tickets):
     rows = []
     for t in tickets:
         cf  = t.get("cf") or {}
+        # If cf is empty and we have token, fetch individual ticket detail
+        if not cf and token:
+            detail = get_ticket_detail(token, t.get("id",""))
+            cf = detail.get("cf") or {}
+            t  = {**t, **detail}
         sla = (t.get("slaViolationType") or cf.get("cf_sla_violation_type") or "Not Violated")
         rows.append({
             "SLA Violation Type":  sla,
@@ -141,8 +154,8 @@ print("Fetching tickets from Zoho...")
 token   = zoho_token()
 tix_A   = fetch_tickets(token, wA_start, wA_end)
 tix_B   = fetch_tickets(token, wB_start, wB_end)
-df_A    = to_df(tix_A)
-df_B    = to_df(tix_B)
+df_A    = to_df(tix_A, token)
+df_B    = to_df(tix_B, token)
 print(f"  {WK_A}: {len(df_A)} tickets")
 print(f"  {WK_B}: {len(df_B)} tickets")
 
