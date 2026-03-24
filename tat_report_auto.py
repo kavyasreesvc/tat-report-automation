@@ -63,7 +63,7 @@ def fetch_tickets(token, from_dt, to_dt):
     while True:
         r = requests.get("https://desk.zoho.in/api/v1/tickets",
                          headers=headers,
-                         params={"limit": 100, "from": offset, "sortBy": "createdTime", "order": "desc"})
+                         params={"limit": 100, "from": offset, "sortBy": "createdTime"})
         if r.status_code != 200:
             print(f"  API error {r.status_code}: {r.text[:300]}")
             break
