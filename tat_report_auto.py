@@ -57,48 +57,56 @@ def zoho_token():
         raise Exception(f"Zoho auth error: {d}")
     return d["access_token"]
 
+def parse_dt(s):
+    if not s: return None
+    try: return datetime.strptime(s.replace("T"," ").replace("Z","").replace(".000","")[:19], "%Y-%m-%d %H:%M:%S")
+    except: return None
+
 def fetch_tickets(token, from_dt, to_dt):
+    """Fetch tickets in date range by paginating through all tickets."""
     headers = {"Authorization": f"Zoho-oauthtoken {token}", "orgId": ZOHO_ORG_ID}
-    all_tix, offset = [], 0
-    while True:
+    result, offset = [], 0
+    MAX_OFFSET = 10000  # paginate up to 10000 tickets to find recent ones
+
+    while offset <= MAX_OFFSET:
         r = requests.get("https://desk.zoho.in/api/v1/tickets",
                          headers=headers,
-                         params={
-                             "limit":   100,
-                             "from":    offset,
-                             "include": "cf,assignee",
-                         })
+                         params={"limit": 100, "from": offset})
         if r.status_code != 200:
-            print(f"  API error {r.status_code}: {r.text[:300]}")
+            print(f"  API error {r.status_code}: {r.text[:200]}")
             break
         data = r.json().get("data", [])
         if not data:
             break
-        all_tix.extend(data)
-            # Stop fetching if oldest ticket on page is before our range
-        oldest = data[-1].get("createdTime", "")
-        if oldest:
-            oldest_clean = oldest.replace("T"," ").replace("Z","").replace(".000","")[:19]
-            try:
-                oldest_dt = datetime.strptime(oldest_clean, "%Y-%m-%d %H:%M:%S")
-                if oldest_dt < from_dt - timedelta(days=1):
-                    break
-            except:
-                pass
+
+        # Check date range of this page
+        first_dt = parse_dt(data[0].get("createdTime",""))
+        last_dt  = parse_dt(data[-1].get("createdTime",""))
+
+        if offset == 0:
+            print(f"  First page dates: {first_dt} to {last_dt}")
+
+        # Filter tickets on this page that fall in our range
+        for t in data:
+            ct = parse_dt(t.get("createdTime",""))
+            if ct and from_dt <= ct <= to_dt:
+                result.append(t)
+
+        # If newest ticket on page is still older than our range, keep paginating
+        # If oldest ticket on page is newer than our range, stop
+        if last_dt and last_dt > to_dt and first_dt and first_dt > to_dt:
+            break  # gone past our range
         if len(data) < 100:
             break
         offset += 100
-        if offset > 1000:
-            break
 
-    print(f"  Fetched {len(all_tix)} total tickets from API")
-    if all_tix:
-        t = all_tix[0]
-        print(f"  Sample ticket keys: {list(t.keys())}")
-        print(f"  createdTime: {t.get('createdTime','')}")
-        print(f"  status: {t.get('status','')}")
-        print(f"  cf field: {t.get('cf',{})}")
+    print(f"  Found {len(result)} tickets for {from_dt.date()} – {to_dt.date()}")
+    if result:
+        t = result[0]
+        cf = t.get("cf") or {}
+        print(f"  Sample cf: {cf}")
         print(f"  slaViolationType: {t.get('slaViolationType','')}")
+    return result
 
     # Filter by date
     result = []
