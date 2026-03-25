@@ -69,64 +69,46 @@ def fetch_ticket_detail(headers, ticket_id):
         return r.json()
     return {}
 
-def fetch_tickets(token, from_dt, to_dt):
-    """Fetch tickets using Zoho search API with date range filter."""
+def fetch_all_tickets(token):
+    """Fetch ALL tickets by paginating through entire history."""
     headers = {"Authorization": f"Zoho-oauthtoken {token}", "orgId": ZOHO_ORG_ID}
-    result, offset = [], 0
-
-    from_str = from_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-    to_str   = to_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
-
+    all_tix, offset = [], 0
     while True:
-        # Use Zoho search API with createdTime filter
-        r = requests.get("https://desk.zoho.in/api/v1/tickets/search",
+        r = requests.get("https://desk.zoho.in/api/v1/tickets",
                          headers=headers,
-                         params={
-                             "limit":          50,
-                             "from":           offset,
-                             "createdTime":    from_str,
-                             "endCreatedTime": to_str,
-                         })
-        print(f"  Search API status: {r.status_code} (offset={offset})")
+                         params={"limit": 100, "from": offset})
         if r.status_code != 200:
-            print(f"  Search error: {r.text[:300]}")
+            print(f"  API error {r.status_code}: {r.text[:200]}")
             break
         data = r.json().get("data", [])
-        print(f"  Got {len(data)} tickets")
         if not data:
             break
-
-        # Fetch full details for each ticket to get custom fields
-        for t in data:
-            detail = fetch_ticket_detail(headers, t.get("id",""))
-            if detail:
-                result.append(detail)
-            else:
-                result.append(t)
-
-        if len(data) < 50:
+        all_tix.extend(data)
+        print(f"  Page offset={offset}: {len(data)} tickets, latest createdTime={data[-1].get('createdTime','')[:10]}")
+        if len(data) < 100:
             break
-        offset += 50
+        offset += 100
+    print(f"  Total fetched: {len(all_tix)} tickets")
+    return all_tix
 
-    print(f"  Total: {len(result)} tickets for {from_dt.date()} – {to_dt.date()}")
-    if result:
-        cf = result[0].get("cf") or {}
-        print(f"  Sample cf keys: {list(cf.keys())[:5]}")
-        print(f"  slaViolationType: {result[0].get('slaViolationType','')}")
-    return result
-
-    # Filter by date
+def fetch_tickets(token, from_dt, to_dt):
+    """Filter tickets by date range and enrich with custom fields."""
+    all_tix = fetch_all_tickets(token)
     result = []
     for t in all_tix:
-        ct = t.get("createdTime", "") or ""
-        ct_clean = ct.replace("T"," ").replace("Z","").replace(".000","")[:19]
-        try:
-            ct_dt = datetime.strptime(ct_clean, "%Y-%m-%d %H:%M:%S")
-            if from_dt <= ct_dt <= to_dt:
-                result.append(t)
-        except:
-            pass
-    print(f"  Filtered to {len(result)} tickets for {from_dt.date()} – {to_dt.date()}")
+        ct = parse_dt(t.get("createdTime",""))
+        if ct and from_dt <= ct <= to_dt:
+            # Fetch full ticket details to get custom fields (cf)
+            detail = fetch_ticket_detail(
+                {"Authorization": f"Zoho-oauthtoken {token}", "orgId": ZOHO_ORG_ID},
+                t.get("id","")
+            )
+            result.append(detail if detail else t)
+    print(f"  Filtered: {len(result)} tickets for {from_dt.date()} – {to_dt.date()}")
+    if result:
+        cf = result[0].get("cf") or {}
+        print(f"  Sample cf: {cf}")
+        print(f"  slaViolationType: {result[0].get('slaViolationType','')}")
     return result
 
 def get_ticket_detail(token, ticket_id):
