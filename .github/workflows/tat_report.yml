@@ -2,8 +2,8 @@ name: Weekly TAT Report
 
 on:
   schedule:
-    # Every Thursday at 3:30 UTC = 9:00 AM IST
-    - cron: '30 3 * * 4'
+    # Every Thursday at 4:30 UTC = 10:00 AM IST
+    - cron: '30 4 * * 4'
   workflow_dispatch:
 
 jobs:
